@@ -8,7 +8,9 @@ library(data.table)
 library(haven)
 library(tidyr)
 library(mgcv)
+install.packages('zoo')
 library(zoo)
+install.packages('remotes')
 library(remotes)
 library(metR)
 library(lubridate)
@@ -152,10 +154,10 @@ inland_comms <- c("1", "2", "4", "5", "6", "7", "8",
 #                     comm_num %in% inland_comms, ]
 
 # central analysis
-verif_el <- verif_1[resident == 1 &
-                    ageyrs >= 15 &
-                    ageyrs <= 49 &
-                    !comm_num %in% c(38, 770, 771, 774), ]
+# verif_el <- verif_1[resident == 1 &
+#                     ageyrs >= 15 &
+#                     ageyrs <= 49 &
+#                     !comm_num %in% c(38, 770, 771, 774), ]
 verif_el[, table(round)]
 rm(verif_1)
 
@@ -211,13 +213,14 @@ for (i in 1:N) {
   seroconverter_cohort <- find_seroconvert_cohort(status_df,
                                                   hivstatus_vlcopies_1_inc)
 
+  unique(hivstatus_vlcopies_1_inc)
   # add anonimized id
-  seroconverter_cohort <- merge(seroconverter_cohort,
-                                anonimized_id,
-                                by = "research_id")
+  # seroconverter_cohort <- merge(seroconverter_cohort,
+  #                               anonimized_id,
+  #                               by = "research_id")
 
   # keep only necessary covariate
-  seroconverter_cohort <- seroconverter_cohort[, .(anonimized_id,
+  seroconverter_cohort <- seroconverter_cohort[, .(research_id,
                                                    age,
                                                    sex,
                                                    number_missing_visits,
@@ -250,6 +253,25 @@ saveRDS(stats, file_name)
 file <- file.path(indir, "data", "seroconverter_cohort_R6R19.rds")
 saveRDS(seroconverter_cohort_list, file = file)
 
+
+# combine the list
+data <- data.table::rbindlist( seroconverter_cohort_list, use.names = T, fill = T )
+
+
+
+#### Read the incidence data -------
+data <- data[round %in% c(10, 14)]
+
+# test if we will have different hivinc results for the same people in the same round
+tmp <- data[, list(med = median(hivinc)),
+                   by = c('research_id', 'round')]
+
+stopifnot(nrow(tmp) == nrow(unique(tmp[, list(research_id, round)])))
+
+# then we can just use only one iteration to get the data!!!
+incidence <- data[iterations == 1, list(research_id,age,sex,round,hivinc)]
+incidence[, part.round := ifelse(round == 10, 'R015', 'R019')]
+incidence[, table(part.round, hivinc)]
 # seroconvert cohort sensitivity analysis (continuously surveyed commm)
 # file <- file.path(indir,
 #                   "data",
